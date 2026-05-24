@@ -18,11 +18,10 @@ build/
 # OS
 .DS_Store
 
-# Claude Code local (all settings, cache, plans, memory)
+# Claude Code (all local AI assistant files — not part of the project)
 .claude/
 .claudeignore
-
-# Session handoff (local only)
+CLAUDE.md
 CLAUDE-HANDOFF.md
 
 # Local task notes
