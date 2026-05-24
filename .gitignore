@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Environment secrets — NEVER commit
+.env
+.env.*
+*.pem
+*.key
+
+# Logs
+*.log
+logs/
+
+# Build output
+dist/
+build/
+
+# OS
+.DS_Store
+
+# Claude Code local (all settings, cache, plans, memory)
+.claude/
+.claudeignore
+
+# Session handoff (local only)
+CLAUDE-HANDOFF.md
+
+# Local task notes
+Tareas/
