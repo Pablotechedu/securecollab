@@ -83,7 +83,13 @@ router.put('/:id', validate(updateTaskSchema), async (req, res, next) => {
     logger.info('Task updated', { taskId: task._id.toString(), actorId: requesterId });
     writeAuditLog({ action: 'task.update', actorId: requesterId, resourceType: 'task', resourceId: task._id, req });
 
-    return res.status(200).json(task);
+    const updatedProject = await Project.findById(task.projectId);
+    const updatedRole = updatedProject ? getProjectRole(updatedProject, requesterId) : null;
+    const taskObj = task.toObject();
+    if (!canViewSensitiveDescription(req.user, taskObj, updatedRole)) {
+      taskObj.description = undefined;
+    }
+    return res.status(200).json(taskObj);
   } catch (err) {
     next(err);
   }
@@ -123,7 +129,11 @@ router.patch('/:id/status', validate(patchStatusSchema), async (req, res, next) 
     logger.info('Task status updated', { taskId: task._id.toString(), status, actorId: requesterId });
     writeAuditLog({ action: 'task.status_change', actorId: requesterId, resourceType: 'task', resourceId: task._id, metadata: { status }, req });
 
-    return res.status(200).json(task);
+    const statusTaskObj = task.toObject();
+    if (!canViewSensitiveDescription(req.user, statusTaskObj, projectRole)) {
+      statusTaskObj.description = undefined;
+    }
+    return res.status(200).json(statusTaskObj);
   } catch (err) {
     next(err);
   }

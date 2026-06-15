@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { encrypt, decrypt } from '../utils/encryption.js';
 
 const taskSchema = new mongoose.Schema({
   title: {
@@ -10,7 +11,7 @@ const taskSchema = new mongoose.Schema({
   description: {
     type: String,
     trim: true,
-    maxlength: 5000,
+    get: (val) => decrypt(val),
   },
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -53,6 +54,9 @@ const taskSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+}, {
+  toJSON: { getters: true },
+  toObject: { getters: true },
 });
 
 taskSchema.index({ projectId: 1 });
@@ -60,6 +64,11 @@ taskSchema.index({ assigneeId: 1 });
 
 taskSchema.pre('save', function (next) {
   this.updatedAt = new Date();
+  // Use _doc to read the raw stored value, bypassing the getter, to avoid double-encryption
+  const raw = this._doc.description;
+  if (this.sensitive && raw && !raw.startsWith('ENC:')) {
+    this._doc.description = encrypt(raw);
+  }
   next();
 });
 

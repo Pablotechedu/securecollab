@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { encrypt, decrypt } from '../utils/encryption.js';
 
 const projectMemberSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -15,7 +16,8 @@ const projectSchema = new mongoose.Schema({
   description: {
     type: String,
     trim: true,
-    maxlength: 1000,
+    set: (val) => encrypt(val),
+    get: (val) => decrypt(val),
   },
   orgId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -40,6 +42,9 @@ const projectSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+}, {
+  toJSON: { getters: true },
+  toObject: { getters: true },
 });
 
 projectSchema.index({ orgId: 1 });
