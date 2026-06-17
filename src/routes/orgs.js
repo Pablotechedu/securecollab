@@ -181,6 +181,37 @@ router.post('/:id/members', validate(addMemberSchema), async (req, res, next) =>
   }
 });
 
+// GET /api/orgs/:id/members — returns member list with user details
+router.get('/:id/members', async (req, res, next) => {
+  try {
+    const requesterId = req.user._id;
+
+    const org = await Organization.findById(req.params.id);
+    if (!org) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const isSuperAdmin = req.user.role === 'super_admin';
+    const orgRole = getOrgRole(org, requesterId);
+    if (!isSuperAdmin && !orgRole) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const userIds = org.members.map((m) => m.userId);
+    const users = await User.find({ _id: { $in: userIds } }).select('_id name email').lean();
+    const userMap = Object.fromEntries(users.map((u) => [u._id.toString(), u]));
+
+    const members = org.members.map((m) => {
+      const u = userMap[m.userId.toString()] || {};
+      return { userId: m.userId, name: u.name ?? '', email: u.email ?? '', role: m.role };
+    });
+
+    return res.status(200).json({ members });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // DELETE /api/orgs/:id/members/:userId
 router.delete('/:id/members/:userId', async (req, res, next) => {
   try {

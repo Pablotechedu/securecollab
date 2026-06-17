@@ -115,6 +115,41 @@ router.delete('/:id', async (req, res, next) => {
   }
 });
 
+// GET /api/projects/:id/members — returns member list with user details
+router.get('/:id/members', async (req, res, next) => {
+  try {
+    const requesterId = req.user._id;
+
+    const project = await Project.findById(req.params.id);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const org = await Organization.findById(project.orgId);
+    if (!org) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    if (!canViewProject(req.user, org.toObject(), project.toObject())) {
+      writeAuditLog({ action: 'security.unauthorized', actorId: requesterId, metadata: { path: req.path, rule: 'canViewProject' }, req });
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const userIds = project.members.map((m) => m.userId);
+    const users = await User.find({ _id: { $in: userIds } }).select('_id name email').lean();
+    const userMap = Object.fromEntries(users.map((u) => [u._id.toString(), u]));
+
+    const members = project.members.map((m) => {
+      const u = userMap[m.userId.toString()] || {};
+      return { userId: m.userId, name: u.name ?? '', email: u.email ?? '', role: m.role };
+    });
+
+    return res.status(200).json({ members });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/projects/:id/members
 router.post('/:id/members', validate(addProjectMemberSchema), async (req, res, next) => {
   try {

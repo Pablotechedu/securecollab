@@ -3,6 +3,7 @@ import Joi from 'joi';
 import Project from '../models/Project.js';
 import Task from '../models/Task.js';
 import Comment from '../models/Comment.js';
+import AuditLog from '../models/AuditLog.js';
 import validate from '../middleware/validate.js';
 import logger from '../utils/logger.js';
 import { writeAuditLog } from '../utils/auditLogger.js';
@@ -134,6 +135,32 @@ router.patch('/:id/status', validate(patchStatusSchema), async (req, res, next) 
       statusTaskObj.description = undefined;
     }
     return res.status(200).json(statusTaskObj);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/tasks/:id/audit-logs — returns audit log entries for this task
+router.get('/:id/audit-logs', async (req, res, next) => {
+  try {
+    const requesterId = req.user._id;
+
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    if (!await canReadTask(req.user, task)) {
+      writeAuditLog({ action: 'security.unauthorized', actorId: requesterId, metadata: { path: req.path, rule: 'canReadTask' }, req });
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const logs = await AuditLog.find({ resourceType: 'task', resourceId: task._id })
+      .sort({ timestamp: -1 })
+      .limit(50)
+      .lean();
+
+    return res.status(200).json({ logs });
   } catch (err) {
     next(err);
   }

@@ -213,45 +213,45 @@ Estas reglas deben implementarse como middleware o dentro de los handlers. No so
 Cada capa se agrega en la clase correspondiente. Para la entrega final, todas deben estar presentes.
 
 ### Ya deben tener desde clase 8
-- [ ] Helmet (security headers)
-- [ ] CORS configurado con allowlist
-- [ ] JWT access token (15 min) + refresh token (7 días) con rotación
-- [ ] Passwords con bcrypt
-- [ ] Validación de inputs con Joi en todos los endpoints
-- [ ] Error handler centralizado (sin stack traces al cliente)
-- [ ] RBAC básico con middleware `authorize`
+- [x] Helmet (security headers) — `app.use(helmet())` en `src/app.js`
+- [x] CORS configurado con allowlist — `allowedOrigins` desde env en `src/app.js`
+- [x] JWT access token (15 min) + refresh token (7 días) con rotación — `src/utils/jwt.js`, `src/routes/auth.js`
+- [x] Passwords con bcrypt — `src/models/User.js` pre-save hook
+- [x] Validación de inputs con Joi en todos los endpoints — `src/middleware/validate.js` aplicado en todas las rutas
+- [x] Error handler centralizado (sin stack traces al cliente) — `src/middleware/errorHandler.js`
+- [x] RBAC básico con middleware `authorize` — `src/middleware/authorize.js` (`requireSystemRole`)
 
 ### Clase 9 — Rate Limiting
-- [ ] `POST /api/auth/login`: máximo 5 intentos por IP cada 15 minutos → 429
-- [ ] `POST /api/auth/register`: máximo 3 registros por IP por hora → 429
-- [ ] `POST /api/tasks/:taskId/comments`: máximo 20 comentarios por usuario por minuto → 429
-- [ ] Endpoints generales: máximo 100 requests por usuario por minuto → 429
-- [ ] La respuesta 429 debe incluir el header `Retry-After`
+- [x] `POST /api/auth/login`: máximo 5 intentos por IP cada 15 minutos → 429 — `src/middleware/rateLimiters.js`
+- [x] `POST /api/auth/register`: máximo 3 registros por IP por hora → 429 — `src/middleware/rateLimiters.js`
+- [x] `POST /api/tasks/:taskId/comments`: máximo 20 comentarios por usuario por minuto → 429 — `src/middleware/rateLimiters.js`
+- [x] Endpoints generales: máximo 100 requests por usuario por minuto → 429 — `src/middleware/rateLimiters.js`
+- [x] La respuesta 429 debe incluir el header `Retry-After` — `res.set('Retry-After', ...)` en `makeRateLimitMiddleware`
 
 ### Clase 10 — Audit Logging
-- [ ] Cada acción en la lista siguiente debe crear un `AuditLog`:
-  - `auth.register`, `auth.login.success`, `auth.login.failure`, `auth.logout`
-  - `task.create`, `task.update`, `task.delete`, `task.status_change`
-  - `org.member.add`, `org.member.remove`
-  - `security.unauthorized` (cualquier 403)
-  - `security.rate_limited` (cualquier 429)
-- [ ] El log debe incluir: `actorId`, `ip`, `userAgent`, `resourceId`, `timestamp`
-- [ ] Los logs **nunca** se borran (no exponer endpoint DELETE en audit logs)
-- [ ] Solo `super_admin` puede leer los logs vía `GET /api/admin/audit-logs`
+- [x] Cada acción en la lista siguiente debe crear un `AuditLog`:
+  - `auth.register`, `auth.login.success`, `auth.login.failure`, `auth.logout` — `src/routes/auth.js`
+  - `task.create`, `task.update`, `task.delete`, `task.status_change` — `src/routes/tasks.js`, `src/routes/tasksById.js`
+  - `org.member.add`, `org.member.remove` — `src/routes/orgs.js`
+  - `security.unauthorized` (cualquier 403) — múltiples rutas
+  - `security.rate_limited` (cualquier 429) — `src/middleware/rateLimiters.js`
+- [x] El log debe incluir: `actorId`, `ip`, `userAgent`, `resourceId`, `timestamp` — `src/utils/auditLogger.js`
+- [x] Los logs **nunca** se borran (no exponer endpoint DELETE en audit logs) — no existe DELETE en `src/routes/admin.js`
+- [x] Solo `super_admin` puede leer los logs vía `GET /api/admin/audit-logs` — `requireSystemRole('super_admin')` en `src/app.js`
 
 ### Clase 11 — ABAC Completo (proyecto)
-- [ ] Implementar todas las reglas de negocio listadas arriba
-- [ ] Las políticas viven en `src/policies/` como funciones puras testeables
+- [x] Implementar todas las reglas de negocio listadas arriba — `src/routes/orgs.js`, `projectsById.js`, `tasksById.js`
+- [x] Las políticas viven en `src/policies/` como funciones puras testeables — `orgPolicies.js`, `projectPolicies.js`, `taskPolicies.js`, `commentPolicies.js`
 
 ### Clase 12 — Cifrado de datos sensibles
-- [ ] Campo `project.description` cifrado en reposo con AES-256-GCM (`crypto` nativo de Node)
-- [ ] Campo `task.description` cifrado cuando `task.sensitive = true`
-- [ ] La clave de cifrado va en `.env` como `ENCRYPTION_KEY` (32 bytes en hex)
-- [ ] Los datos se descifran al leer, nunca se almacenan en texto plano
-- [ ] Si se pierde la `ENCRYPTION_KEY`, los datos deben ser irrecuperables (correcto por diseño)
+- [x] Campo `project.description` cifrado en reposo con AES-256-GCM (`crypto` nativo de Node) — `src/models/Project.js` setter/getter
+- [x] Campo `task.description` cifrado cuando `task.sensitive = true` — `src/models/Task.js` pre-save hook
+- [x] La clave de cifrado va en `.env` como `ENCRYPTION_KEY` (32 bytes en hex) — validación en `src/utils/encryption.js`
+- [x] Los datos se descifran al leer, nunca se almacenan en texto plano — getter + `toJSON: { getters: true }`
+- [x] Si se pierde la `ENCRYPTION_KEY`, los datos deben ser irrecuperables (correcto por diseño) — AES-GCM sin IV almacenado separado
 
 ### Clase 13 — Security Testing
-- [ ] Al menos 5 tests de seguridad en `tests/security/`:
+- [ ] Al menos 5 tests de seguridad en `tests/security/`: *(pendiente — solo existe `encryption.test.js`)*
   - IDOR: usuario B no puede ver tareas del proyecto de usuario A
   - Brute force: el 6to intento de login debe retornar 429
   - Injection: enviar `{ "title": { "$gt": "" } }` debe retornar 422
@@ -263,22 +263,22 @@ Cada capa se agrega en la clase correspondiente. Para la entrega final, todas de
 ## Frontend (construido por ustedes)
 
 ### Requisitos mínimos
-- [ ] Login y registro con manejo de tokens en memoria (no localStorage)
-- [ ] Refresh silencioso con interceptor de axios (el usuario no debe ver el logout forzado salvo expiración de refresh token)
-- [ ] Rutas protegidas — si no hay sesión activa, redirigir a login
-- [ ] Sanitización de inputs con DOMPurify antes de enviar al API
-- [ ] Dashboard con lista de organizaciones del usuario
-- [ ] Vista de proyecto con lista de tareas (Kanban o lista, a elección)
-- [ ] Formulario de crear/editar tarea con campo `sensitive`
-- [ ] Sección de comentarios por tarea
-- [ ] Indicador visual cuando una tarea es `sensitive`
-- [ ] Manejo de errores: mostrar mensaje al usuario en 401, 403, 422, 429 (con el `Retry-After`)
+- [x] Login y registro con manejo de tokens en memoria (no localStorage) — `client/src/store/authStore.ts` (Zustand sin persist)
+- [x] Refresh silencioso con interceptor de axios (el usuario no debe ver el logout forzado salvo expiración de refresh token) — `client/src/services/api.ts`
+- [x] Rutas protegidas — si no hay sesión activa, redirigir a login — `client/src/features/auth/components/AuthGuard.tsx`
+- [x] Sanitización de inputs con DOMPurify antes de enviar al API — `client/src/utils/sanitize.ts` + DOMPurify en todos los componentes
+- [x] Dashboard con lista de organizaciones del usuario — `client/src/features/orgs/pages/OrgListPage.tsx`
+- [x] Vista de proyecto con lista de tareas (Kanban o lista, a elección) — `client/src/features/kanban/pages/KanbanPage.tsx` (Kanban con drag & drop)
+- [x] Formulario de crear/editar tarea con campo `sensitive` — `client/src/features/kanban/components/CreateTaskModal.tsx`, `TaskDetail.tsx`
+- [x] Sección de comentarios por tarea — `client/src/features/comments/components/CommentsPanel.tsx`
+- [x] Indicador visual cuando una tarea es `sensitive` — 🔒 badge en `TaskCard.tsx` y `TaskDetail.tsx`
+- [x] Manejo de errores: mostrar mensaje al usuario en 401, 403, 422, 429 (con el `Retry-After`) — `client/src/components/ErrorMessage.tsx`
 
 ### No es requisito pero suma puntos
-- Drag & drop para cambiar estado de tareas
-- Notificaciones en tiempo real (WebSocket o polling)
-- Vista de audit logs para admins
-- Dark mode
+- [x] Drag & drop para cambiar estado de tareas — `@hello-pangea/dnd` en `Board.tsx` / `Column.tsx`
+- [ ] Notificaciones en tiempo real (WebSocket o polling)
+- [x] Vista de audit logs para admins — `client/src/features/kanban/components/AuditLogPanel.tsx`
+- [ ] Dark mode
 
 ---
 
