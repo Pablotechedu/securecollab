@@ -19,6 +19,7 @@ export interface Organization {
   ownerId: string
   members: OrgMember[]
   createdAt: string
+  projectCount?: number
 }
 
 export interface ProjectMember {

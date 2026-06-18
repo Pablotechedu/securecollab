@@ -30,6 +30,9 @@ export default function OrgCard({ org }: Props) {
         />
       )}
       <p className="mt-2 text-xs text-gray-400">
+        {org.projectCount != null
+          ? `${org.projectCount} project${org.projectCount !== 1 ? 's' : ''} · `
+          : ''}
         {org.members.length} member{org.members.length !== 1 ? 's' : ''}
       </p>
     </button>

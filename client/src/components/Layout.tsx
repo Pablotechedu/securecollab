@@ -48,6 +48,14 @@ export default function Layout({ children }: Props) {
         </div>
 
         <div className="flex items-center gap-3">
+          {displayUser?.role === 'super_admin' && (
+            <Link
+              to="/admin/users"
+              className="text-xs font-semibold bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full hover:bg-purple-200 transition-colors"
+            >
+              Admin
+            </Link>
+          )}
           {displayUser && (
             <span className="text-sm text-gray-600">{displayUser.name}</span>
           )}

@@ -40,5 +40,23 @@ export function useProjects(orgId: string) {
     return data
   }
 
-  return { projects, loading, error, createProject }
+  async function updateProject(
+    id: string,
+    fields: Partial<Pick<Project, 'name' | 'description' | 'visibility' | 'status'>>,
+  ) {
+    const { data } = await api.put<Project>(`/projects/${id}`, fields)
+    setProjects((prev) => prev.map((p) => (p._id === id ? data : p)))
+    return data
+  }
+
+  async function archiveProject(id: string, archive: boolean) {
+    return updateProject(id, { status: archive ? 'archived' : 'active' })
+  }
+
+  async function deleteProject(id: string) {
+    await api.delete(`/projects/${id}`)
+    setProjects((prev) => prev.filter((p) => p._id !== id))
+  }
+
+  return { projects, loading, error, createProject, updateProject, archiveProject, deleteProject }
 }

@@ -9,7 +9,7 @@ import { useProjects } from '../hooks/useProjects'
 
 export default function ProjectListPage() {
   const { orgId = '' } = useParams<{ orgId: string }>()
-  const { projects, loading, error, createProject } = useProjects(orgId)
+  const { projects, loading, error, createProject, updateProject, archiveProject, deleteProject } = useProjects(orgId)
   const [showModal, setShowModal] = useState(false)
 
   return (
@@ -36,7 +36,14 @@ export default function ProjectListPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {projects.map((project) => (
-            <ProjectCard key={project._id} project={project} orgId={orgId} />
+            <ProjectCard
+              key={project._id}
+              project={project}
+              orgId={orgId}
+              onUpdate={(fields) => updateProject(project._id, fields)}
+              onDelete={() => deleteProject(project._id)}
+              onArchive={(archive) => archiveProject(project._id, archive)}
+            />
           ))}
         </div>
       </div>

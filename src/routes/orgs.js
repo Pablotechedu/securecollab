@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import Joi from 'joi';
 import Organization from '../models/Organization.js';
+import Project from '../models/Project.js';
 import User from '../models/User.js';
 import validate from '../middleware/validate.js';
 import logger from '../utils/logger.js';
@@ -52,7 +53,28 @@ router.get('/', async (req, res, next) => {
     const requesterId = req.user._id;
 
     const organizations = await Organization.find({ 'members.userId': requesterId });
-    return res.status(200).json({ organizations });
+
+    // Count only projects the requester can actually see (mirrors visibility filter in projects route)
+    const counts = await Project.aggregate([
+      {
+        $match: {
+          orgId: { $in: organizations.map((o) => o._id) },
+          $or: [
+            { visibility: 'internal' },
+            { visibility: 'private', 'members.userId': requesterId },
+          ],
+        },
+      },
+      { $group: { _id: '$orgId', count: { $sum: 1 } } },
+    ]);
+    const countMap = Object.fromEntries(counts.map((c) => [c._id.toString(), c.count]));
+
+    const orgsWithCount = organizations.map((org) => ({
+      ...org.toObject(),
+      projectCount: countMap[org._id.toString()] ?? 0,
+    }));
+
+    return res.status(200).json({ organizations: orgsWithCount });
   } catch (err) {
     next(err);
   }

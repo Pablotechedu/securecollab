@@ -31,5 +31,16 @@ export function useOrgs() {
     return data
   }
 
-  return { orgs, loading, error, createOrg }
+  async function updateOrg(id: string, name: string, description?: string) {
+    const { data } = await api.put<Organization>(`/orgs/${id}`, { name, description })
+    setOrgs((prev) => prev.map((o) => (o._id === id ? data : o)))
+    return data
+  }
+
+  async function deleteOrg(id: string) {
+    await api.delete(`/orgs/${id}`)
+    setOrgs((prev) => prev.filter((o) => o._id !== id))
+  }
+
+  return { orgs, loading, error, createOrg, updateOrg, deleteOrg }
 }
