@@ -9,7 +9,6 @@ export function useOrgs() {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
     api
       .get<{ organizations: Organization[] }>('/orgs')
       .then(({ data }) => {

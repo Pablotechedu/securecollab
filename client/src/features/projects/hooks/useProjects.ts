@@ -10,7 +10,6 @@ export function useProjects(orgId: string) {
   useEffect(() => {
     if (!orgId) return
     let cancelled = false
-    setLoading(true)
     api
       .get<{ projects: Project[] }>(`/orgs/${orgId}/projects`)
       .then(({ data }) => {

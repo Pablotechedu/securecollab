@@ -9,8 +9,6 @@ export function useOrgMembers(orgId: string) {
 
   const fetchMembers = useCallback(() => {
     if (!orgId) return
-    setLoading(true)
-    setError(null)
     api
       .get<{ members: MemberWithUser[] }>(`/orgs/${orgId}/members`)
       .then(({ data }) => setMembers(data.members))

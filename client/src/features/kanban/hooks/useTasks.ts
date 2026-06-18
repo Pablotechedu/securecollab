@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import api from '../../../services/api'
 import type { Task, TaskStatus } from '../../../types'
 
@@ -24,19 +24,18 @@ export function useTasks(projectId: string) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
 
-  function reload() {
-    setLoading(true)
+  const reload = useCallback(() => {
     api
       .get<{ tasks: Task[] }>(`/projects/${projectId}/tasks`)
       .then(({ data }) => setTasks(data.tasks))
       .catch((err) => setError(err))
       .finally(() => setLoading(false))
-  }
+  }, [projectId])
 
   useEffect(() => {
     if (!projectId) return
     reload()
-  }, [projectId])
+  }, [reload, projectId])
 
   const columns = groupByStatus(tasks)
 

@@ -10,7 +10,6 @@ export function useComments(taskId: string) {
   useEffect(() => {
     if (!taskId) return
     let cancelled = false
-    setLoading(true)
     api
       .get<{ comments: Comment[] }>(`/tasks/${taskId}/comments`)
       .then(({ data }) => {

@@ -10,7 +10,6 @@ export function useAuditLog(taskId: string) {
   useEffect(() => {
     if (!taskId) return
     let cancelled = false
-    setLoading(true)
     api
       .get<{ logs: AuditLogEntry[] }>(`/tasks/${taskId}/audit-logs`)
       .then(({ data }) => {

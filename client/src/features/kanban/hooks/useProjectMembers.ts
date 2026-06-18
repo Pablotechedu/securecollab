@@ -10,7 +10,6 @@ export function useProjectMembers(projectId: string) {
   useEffect(() => {
     if (!projectId) return
     let cancelled = false
-    setLoading(true)
     api
       .get<{ members: MemberWithUser[] }>(`/projects/${projectId}/members`)
       .then(({ data }) => {
