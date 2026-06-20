@@ -10,6 +10,7 @@ import { writeAuditLog } from '../utils/auditLogger.js';
 import { getProjectRole } from '../policies/projectPolicies.js';
 import { canCreateComment } from '../policies/commentPolicies.js';
 import { isProjectArchived } from '../policies/taskPolicies.js';
+import { getIO, EVENTS } from '../services/socketService.js';
 
 const router = Router({ mergeParams: true });
 
@@ -56,6 +57,16 @@ router.post('/', commentLimit, validate(createCommentSchema), async (req, res, n
 
     await comment.save();
     logger.info('Comment created', { commentId: comment._id.toString(), taskId, actorId: requesterId });
+    writeAuditLog({ action: 'comment.create', actorId: requesterId, resourceType: 'comment', resourceId: comment._id, metadata: { taskId }, req });
+
+    try {
+      getIO().to(`project:${task.projectId}`).emit(EVENTS.COMMENT_CREATED, {
+        projectId: String(task.projectId),
+        taskId,
+        commentId: comment._id.toString(),
+        actorId: String(requesterId),
+      });
+    } catch { /* socket not initialized — graceful no-op */ }
 
     return res.status(201).json(comment);
   } catch (err) {

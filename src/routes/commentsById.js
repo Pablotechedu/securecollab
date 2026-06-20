@@ -35,6 +35,7 @@ router.put('/:id', validate(updateCommentSchema), async (req, res, next) => {
     comment.editedAt = new Date();
     await comment.save();
     logger.info('Comment updated', { commentId: comment._id.toString(), actorId: requesterId });
+    writeAuditLog({ action: 'comment.edit', actorId: requesterId, resourceType: 'comment', resourceId: comment._id, metadata: { taskId: comment.taskId.toString() }, req });
 
     return res.status(200).json(comment);
   } catch (err) {
@@ -71,6 +72,7 @@ router.delete('/:id', async (req, res, next) => {
 
     await Comment.deleteOne({ _id: comment._id });
     logger.info('Comment deleted', { commentId: comment._id.toString(), actorId: requesterId });
+    writeAuditLog({ action: 'comment.delete', actorId: requesterId, resourceType: 'comment', resourceId: comment._id, metadata: { taskId: comment.taskId.toString() }, req });
 
     return res.status(204).send();
   } catch (err) {

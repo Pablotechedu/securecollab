@@ -19,7 +19,7 @@ const updateProjectSchema = Joi.object({
 });
 
 const addProjectMemberSchema = Joi.object({
-  userId: Joi.string().required(),
+  email: Joi.string().email({ tlds: { allow: false } }).lowercase().required(),
   role: Joi.string().valid('project_admin', 'developer', 'viewer').required(),
 });
 
@@ -79,6 +79,7 @@ router.put('/:id', validate(updateProjectSchema), async (req, res, next) => {
 
     await project.save();
     logger.info('Project updated', { projectId: project._id.toString(), actorId: requesterId });
+    writeAuditLog({ action: 'project.update', actorId: requesterId, resourceType: 'project', resourceId: project._id, metadata: { fields: Object.keys(req.body) }, req });
 
     return res.status(200).json(project);
   } catch (err) {
@@ -108,6 +109,7 @@ router.delete('/:id', async (req, res, next) => {
 
     await Project.deleteOne({ _id: project._id });
     logger.info('Project deleted', { projectId: project._id.toString(), orgId: project.orgId.toString(), actorId: requesterId });
+    writeAuditLog({ action: 'project.delete', actorId: requesterId, resourceType: 'project', resourceId: project._id, metadata: { orgId: project.orgId.toString() }, req });
 
     return res.status(204).send();
   } catch (err) {
@@ -154,7 +156,7 @@ router.get('/:id/members', async (req, res, next) => {
 router.post('/:id/members', validate(addProjectMemberSchema), async (req, res, next) => {
   try {
     const requesterId = req.user._id;
-    const { userId, role } = req.body;
+    const { email, role } = req.body;
 
     const project = await Project.findById(req.params.id);
     if (!project) {
@@ -166,19 +168,21 @@ router.post('/:id/members', validate(addProjectMemberSchema), async (req, res, n
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const targetUser = await User.findById(userId).lean();
+    const targetUser = await User.findOne({ email, isActive: true }).lean();
     if (!targetUser) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const alreadyMember = project.members.some((m) => m.userId.equals(userId));
+    const resolvedUserId = targetUser._id;
+    const alreadyMember = project.members.some((m) => m.userId.equals(resolvedUserId));
     if (alreadyMember) {
       return res.status(409).json({ error: 'User is already a project member' });
     }
 
-    project.members.push({ userId, role });
+    project.members.push({ userId: resolvedUserId, role });
     await project.save();
-    logger.info('Member added to project', { projectId: project._id.toString(), targetUserId: userId, actorId: requesterId });
+    logger.info('Member added to project', { projectId: project._id.toString(), targetUserId: resolvedUserId.toString(), actorId: requesterId });
+    writeAuditLog({ action: 'project.member.add', actorId: requesterId, resourceType: 'project', resourceId: project._id, metadata: { targetUserId: resolvedUserId.toString(), targetEmail: email, role }, req });
 
     return res.status(201).json({ message: 'Member added' });
   } catch (err) {

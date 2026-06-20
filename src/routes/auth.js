@@ -130,6 +130,7 @@ router.post('/refresh', validate(refreshSchema), async (req, res, next) => {
     await user.save();
 
     logger.info('Token refreshed', { userId: user._id.toString() });
+    writeAuditLog({ action: 'auth.refresh', actorId: user._id, resourceType: 'user', resourceId: user._id, req });
 
     return res.status(200).json({ accessToken: newAccessToken, refreshToken: newRefreshToken });
   } catch (err) {

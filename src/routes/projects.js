@@ -4,6 +4,7 @@ import Organization from '../models/Organization.js';
 import Project from '../models/Project.js';
 import validate from '../middleware/validate.js';
 import logger from '../utils/logger.js';
+import { writeAuditLog } from '../utils/auditLogger.js';
 
 const router = Router({ mergeParams: true });
 
@@ -48,6 +49,7 @@ router.post('/', validate(createProjectSchema), async (req, res, next) => {
 
     await project.save();
     logger.info('Project created', { projectId: project._id.toString(), orgId, actorId: requesterId });
+    writeAuditLog({ action: 'project.create', actorId: requesterId, resourceType: 'project', resourceId: project._id, metadata: { orgId: orgId.toString(), name }, req });
 
     return res.status(201).json(project);
   } catch (err) {
