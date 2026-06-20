@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import DOMPurify from 'dompurify'
 import { sanitizeText } from '../../../utils/sanitize'
 import CommentsPanel from '../../comments/components/CommentsPanel'
@@ -33,6 +33,12 @@ export default function TaskDetail({
   const currentUser = useAuthStore((s) => s.user)
   const [error, setError] = useState<unknown>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+
+  useEffect(() => {
+    if (!deleteConfirm) return
+    const timer = setTimeout(() => setDeleteConfirm(false), 3000)
+    return () => clearTimeout(timer)
+  }, [deleteConfirm])
 
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(task.title)
@@ -126,10 +132,10 @@ export default function TaskDetail({
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-detail-title"
-        className="fixed inset-y-0 right-0 z-50 w-full max-w-lg bg-white shadow-xl flex flex-col overflow-hidden"
+        className="fixed inset-y-0 right-0 z-50 w-full max-w-lg bg-white dark:bg-gray-800 shadow-xl flex flex-col overflow-hidden"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {(editing ? editSensitive : task.sensitive) && (
               <span
@@ -145,13 +151,13 @@ export default function TaskDetail({
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="flex-1 border border-indigo-300 rounded-lg px-2 py-1 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex-1 border border-indigo-300 rounded-lg px-2 py-1 text-sm font-semibold text-gray-900 dark:bg-gray-700 dark:text-white dark:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 aria-label="Task title"
               />
             ) : (
               <h2
                 id="task-detail-title"
-                className="text-base font-semibold text-gray-900 line-clamp-1"
+                className="text-base font-semibold text-gray-900 dark:text-white line-clamp-1"
                 dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(task.title) }}
               />
             )}
@@ -160,7 +166,7 @@ export default function TaskDetail({
             {canEdit && !editing && (
               <button
                 onClick={startEditing}
-                className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded hover:bg-indigo-50"
+                className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 px-2 py-1 rounded hover:bg-indigo-50 dark:hover:bg-indigo-950"
               >
                 Edit
               </button>
@@ -168,7 +174,7 @@ export default function TaskDetail({
             <button
               onClick={onClose}
               aria-label="Close task detail"
-              className="text-gray-400 hover:text-gray-600 text-xl font-medium"
+              className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl font-medium"
             >
               ✕
             </button>
@@ -180,7 +186,7 @@ export default function TaskDetail({
           {/* Meta row */}
           <div className="flex flex-wrap gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                 Status
               </label>
               <select
@@ -189,7 +195,7 @@ export default function TaskDetail({
                   handleStatusChange(e.target.value as TaskStatus)
                 }
                 disabled={!canEdit}
-                className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+                className="border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
               >
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s} value={s}>
@@ -200,7 +206,7 @@ export default function TaskDetail({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                 Priority
               </label>
               <select
@@ -209,7 +215,7 @@ export default function TaskDetail({
                   handlePriorityChange(e.target.value as TaskPriority)
                 }
                 disabled={!canEdit}
-                className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+                className="border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
               >
                 {PRIORITY_OPTIONS.map((p) => (
                   <option key={p} value={p}>
@@ -219,19 +225,29 @@ export default function TaskDetail({
               </select>
             </div>
 
-            {task.dueDate && (
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">
-                  Due date
-                </label>
-                <p className="text-sm text-gray-700">
-                  {new Date(task.dueDate).toLocaleDateString()}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Due date
+              </label>
+              {canEdit ? (
+                <input
+                  type="date"
+                  value={task.dueDate ? task.dueDate.slice(0, 10) : ''}
+                  onChange={(e) => {
+                    const val = e.target.value || null
+                    onUpdate(task._id, { dueDate: val as string | null }).catch(setError)
+                  }}
+                  className="border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              ) : (
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                  {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '—'}
                 </p>
-              </div>
-            )}
+              )}
+            </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                 Assignee
               </label>
               <AssigneePicker
@@ -249,10 +265,10 @@ export default function TaskDetail({
 
           {/* Description */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
               Description
               {(editing ? editSensitive : task.sensitive) && (
-                <span className="ml-1 text-amber-600">(sensitive)</span>
+                <span className="ml-1 text-amber-600 dark:text-amber-400">(sensitive)</span>
               )}
             </label>
             {editing && canSeeDescription ? (
@@ -261,7 +277,7 @@ export default function TaskDetail({
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
                   rows={4}
-                  className="w-full border border-indigo-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                  className="w-full border border-indigo-300 dark:border-indigo-500 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                   aria-label="Task description"
                 />
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -271,7 +287,7 @@ export default function TaskDetail({
                     onChange={(e) => setEditSensitive(e.target.checked)}
                     className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                   />
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
                     🔒 Mark as sensitive (encrypts description)
                   </span>
                 </label>
@@ -285,7 +301,7 @@ export default function TaskDetail({
                   </button>
                   <button
                     onClick={() => setEditing(false)}
-                    className="text-sm text-gray-500 px-3 py-1.5 rounded-lg hover:bg-gray-100"
+                    className="text-sm text-gray-500 dark:text-gray-400 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                   >
                     Cancel
                   </button>
@@ -294,18 +310,18 @@ export default function TaskDetail({
             ) : canSeeDescription ? (
               task.description ? (
                 <div
-                  className="text-sm text-gray-800 whitespace-pre-wrap bg-gray-50 rounded-lg p-3"
+                  className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap bg-gray-50 dark:bg-gray-700 rounded-lg p-3"
                   dangerouslySetInnerHTML={{
                     __html: DOMPurify.sanitize(task.description),
                   }}
                 />
               ) : (
-                <p className="text-sm text-gray-400 italic">No description.</p>
+                <p className="text-sm text-gray-400 dark:text-gray-500 italic">No description.</p>
               )
             ) : (
-              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
                 <span className="text-amber-500">🔒</span>
-                <p className="text-sm text-amber-700">
+                <p className="text-sm text-amber-700 dark:text-amber-400">
                   Description hidden — this is a sensitive task. Only the
                   assignee and project admin can view it.
                 </p>
@@ -317,7 +333,7 @@ export default function TaskDetail({
 
           {/* Delete */}
           {canDelete && (
-            <div className="pt-2 border-t border-gray-100">
+            <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
               <button
                 onClick={handleDelete}
                 className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${
