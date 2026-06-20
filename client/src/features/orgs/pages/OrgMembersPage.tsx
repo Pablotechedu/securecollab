@@ -38,7 +38,7 @@ export default function OrgMembersPage() {
   const { orgId } = useParams<{ orgId: string }>()
   const navigate = useNavigate()
   const currentUser = useAuthStore((s) => s.user)
-  const { members, loading, error, addMember, removeMember } = useOrgMembers(orgId!)
+  const { members, loading, error, inviteMember, removeMember } = useOrgMembers(orgId!)
   const [showInvite, setShowInvite] = useState(false)
   const [showEditOrg, setShowEditOrg] = useState(false)
   const [removeError, setRemoveError] = useState<unknown>(null)
@@ -226,7 +226,7 @@ export default function OrgMembersPage() {
       {showInvite && (
         <InviteModal
           onClose={() => setShowInvite(false)}
-          onInvite={addMember}
+          onInvite={inviteMember}
         />
       )}
       {showEditOrg && org && (

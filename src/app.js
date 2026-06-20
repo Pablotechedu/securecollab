@@ -10,6 +10,8 @@ import tasksRouter from './routes/tasks.js';
 import tasksByIdRouter from './routes/tasksById.js';
 import commentsRouter from './routes/comments.js';
 import commentsByIdRouter from './routes/commentsById.js';
+import notificationsRouter from './routes/notifications.js';
+import invitationsRouter from './routes/invitations.js';
 import adminRouter from './routes/admin.js';
 import errorHandler from './middleware/errorHandler.js';
 import auth from './middleware/auth.js';
@@ -51,6 +53,8 @@ app.use('/api/projects/:projectId/tasks', auth, tasksRouter);
 app.use('/api/tasks', auth, tasksByIdRouter);
 app.use('/api/tasks/:taskId/comments', auth, commentsRouter);
 app.use('/api/comments', auth, commentsByIdRouter);
+app.use('/api/notifications', auth, notificationsRouter);
+app.use('/api/invitations', auth, invitationsRouter);
 
 // Admin — requires super_admin system role
 app.use('/api/admin', auth, requireSystemRole('super_admin'), adminRouter);

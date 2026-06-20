@@ -22,6 +22,13 @@ const commentRateLimiter = new RateLimiterMemory({
   duration: 60,
 });
 
+// 5 invitations per user per 10 minutes
+const inviteRateLimiter = new RateLimiterMemory({
+  keyPrefix: 'invite',
+  points: 5,
+  duration: 600,
+});
+
 // 100 requests per user (or IP if unauthenticated) per minute
 const generalRateLimiter = new RateLimiterMemory({
   keyPrefix: 'general',
@@ -58,9 +65,14 @@ const commentLimit = makeRateLimitMiddleware(
   (req) => req.user?._id?.toString() || req.ip,
 );
 
+const inviteLimit = makeRateLimitMiddleware(
+  inviteRateLimiter,
+  (req) => req.user?._id?.toString() || req.ip,
+);
+
 const generalLimit = makeRateLimitMiddleware(
   generalRateLimiter,
   (req) => req.user?._id?.toString() || req.ip,
 );
 
-export { loginLimit, registerLimit, commentLimit, generalLimit };
+export { loginLimit, registerLimit, commentLimit, inviteLimit, generalLimit };

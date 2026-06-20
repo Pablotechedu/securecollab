@@ -3,10 +3,14 @@ import Joi from 'joi';
 import Organization from '../models/Organization.js';
 import Project from '../models/Project.js';
 import User from '../models/User.js';
+import Invitation from '../models/Invitation.js';
+import Notification from '../models/Notification.js';
 import validate from '../middleware/validate.js';
 import logger from '../utils/logger.js';
 import { writeAuditLog } from '../utils/auditLogger.js';
-import { getOrgRole, cannotInviteSelf, canRemoveMember, isSuperAdminModifying } from '../policies/orgPolicies.js';
+import { inviteLimit } from '../middleware/rateLimiters.js';
+import { getIO, EVENTS } from '../services/socketService.js';
+import { getOrgRole, canRemoveMember, isSuperAdminModifying } from '../policies/orgPolicies.js';
 
 const router = Router();
 
@@ -21,7 +25,7 @@ const updateOrgSchema = Joi.object({
 });
 
 const addMemberSchema = Joi.object({
-  userId: Joi.string().required(),
+  email: Joi.string().email({ tlds: { allow: false } }).lowercase().required(),
   role: Joi.string().valid('org_admin', 'member').required(),
 });
 
@@ -164,7 +168,7 @@ router.delete('/:id', async (req, res, next) => {
 router.post('/:id/members', validate(addMemberSchema), async (req, res, next) => {
   try {
     const requesterId = req.user._id;
-    const { userId, role } = req.body;
+    const { email, role } = req.body;
 
     const org = await Organization.findById(req.params.id);
     if (!org) {
@@ -177,27 +181,102 @@ router.post('/:id/members', validate(addMemberSchema), async (req, res, next) =>
     }
 
     // Rule 7: cannot invite yourself
-    if (!cannotInviteSelf(requesterId, userId)) {
+    if (req.user.email === email) {
       writeAuditLog({ action: 'security.unauthorized', actorId: requesterId, metadata: { path: req.path, rule: 'cannotInviteSelf' }, req });
       return res.status(403).json({ error: 'Cannot invite yourself' });
     }
 
-    const targetUser = await User.findById(userId).lean();
+    const targetUser = await User.findOne({ email, isActive: true }).lean();
     if (!targetUser) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const alreadyMember = org.members.some((m) => m.userId.equals(userId));
+    const resolvedUserId = targetUser._id;
+    const alreadyMember = org.members.some((m) => m.userId.equals(resolvedUserId));
     if (alreadyMember) {
       return res.status(409).json({ error: 'User is already a member' });
     }
 
-    org.members.push({ userId, role });
+    org.members.push({ userId: resolvedUserId, role });
     await org.save();
-    logger.info('Member added to organization', { orgId: org._id.toString(), targetUserId: userId, actorId: requesterId });
-    writeAuditLog({ action: 'org.member.add', actorId: requesterId, resourceType: 'organization', resourceId: org._id, metadata: { targetUserId: userId, role }, req });
+    logger.info('Member added to organization', { orgId: org._id.toString(), targetUserId: resolvedUserId.toString(), actorId: requesterId });
+    writeAuditLog({ action: 'org.member.add', actorId: requesterId, resourceType: 'organization', resourceId: org._id, metadata: { targetUserId: resolvedUserId.toString(), targetEmail: email, role }, req });
 
     return res.status(201).json({ message: 'Member added' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/orgs/:id/invite — creates invitation + notification instead of immediate add
+router.post('/:id/invite', inviteLimit, validate(addMemberSchema), async (req, res, next) => {
+  try {
+    const requesterId = req.user._id;
+    const { email, role } = req.body;
+
+    const org = await Organization.findById(req.params.id);
+    if (!org) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const requesterRole = getOrgRole(org, requesterId);
+    if (requesterRole !== 'org_admin') {
+      writeAuditLog({ action: 'security.unauthorized', actorId: requesterId, metadata: { path: req.path, rule: 'orgAdminRequired' }, req });
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    if (req.user.email === email) {
+      writeAuditLog({ action: 'security.unauthorized', actorId: requesterId, metadata: { path: req.path, rule: 'cannotInviteSelf' }, req });
+      return res.status(403).json({ error: 'Cannot invite yourself' });
+    }
+
+    const targetUser = await User.findOne({ email, isActive: true }).lean();
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const resolvedUserId = targetUser._id;
+
+    const alreadyMember = org.members.some((m) => m.userId.equals(resolvedUserId));
+    if (alreadyMember) {
+      return res.status(409).json({ error: 'User is already a member' });
+    }
+
+    const existingInvite = await Invitation.findOne({ orgId: org._id, inviteeId: resolvedUserId, status: 'pending' });
+    if (existingInvite) {
+      return res.status(409).json({ error: 'User already has a pending invitation' });
+    }
+
+    const invitation = new Invitation({
+      orgId: org._id,
+      inviteeId: resolvedUserId,
+      inviteeEmail: email,
+      invitedBy: requesterId,
+      role,
+    });
+    await invitation.save();
+
+    const notification = new Notification({
+      recipientId: resolvedUserId,
+      type: 'org.invite',
+      data: { invitationId: invitation._id.toString(), orgId: org._id.toString(), orgName: org.name, role },
+    });
+    await notification.save();
+
+    try {
+      getIO().to(`user:${resolvedUserId.toString()}`).emit(EVENTS.NOTIFICATION_NEW, {
+        _id: notification._id.toString(),
+        type: notification.type,
+        read: false,
+        data: notification.data,
+        createdAt: notification.createdAt,
+      });
+    } catch { /* socket not initialized — graceful no-op */ }
+
+    logger.info('Invitation sent', { orgId: org._id.toString(), targetUserId: resolvedUserId.toString(), actorId: requesterId });
+    writeAuditLog({ action: 'org.invite.sent', actorId: requesterId, resourceType: 'organization', resourceId: org._id, metadata: { targetUserId: resolvedUserId.toString(), targetEmail: email, role }, req });
+
+    return res.status(201).json({ message: 'Invitation sent' });
   } catch (err) {
     next(err);
   }

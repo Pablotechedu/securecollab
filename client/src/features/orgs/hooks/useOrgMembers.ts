@@ -20,9 +20,14 @@ export function useOrgMembers(orgId: string) {
     fetchMembers()
   }, [fetchMembers])
 
-  async function addMember(userId: string, role: 'org_admin' | 'member') {
-    await api.post(`/orgs/${orgId}/members`, { userId, role })
+  async function addMember(email: string, role: 'org_admin' | 'member') {
+    await api.post(`/orgs/${orgId}/members`, { email, role })
     fetchMembers()
+  }
+
+  async function inviteMember(email: string, role: 'org_admin' | 'member') {
+    await api.post(`/orgs/${orgId}/invite`, { email, role })
+    // No member list refresh — the invitee joins after accepting
   }
 
   async function removeMember(userId: string) {
@@ -30,5 +35,5 @@ export function useOrgMembers(orgId: string) {
     fetchMembers()
   }
 
-  return { members, loading, error, addMember, removeMember, reload: fetchMembers }
+  return { members, loading, error, addMember, inviteMember, removeMember, reload: fetchMembers }
 }
