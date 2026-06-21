@@ -92,6 +92,12 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const requesterId = req.user._id;
 
+    // Rule 8: super_admin cannot modify project data
+    if (isSuperAdminModifying(req.user)) {
+      writeAuditLog({ action: 'security.unauthorized', actorId: req.user._id, metadata: { path: req.path, rule: 'isSuperAdminModifying' }, req });
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     const project = await Project.findById(req.params.id);
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });

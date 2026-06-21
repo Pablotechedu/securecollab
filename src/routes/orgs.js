@@ -145,6 +145,12 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const requesterId = req.user._id;
 
+    // Rule 8: super_admin cannot modify org data
+    if (isSuperAdminModifying(req.user)) {
+      writeAuditLog({ action: 'security.unauthorized', actorId: requesterId, metadata: { path: req.path, rule: 'isSuperAdminModifying' }, req });
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     const org = await Organization.findById(req.params.id);
     if (!org) {
       return res.status(404).json({ error: 'Organization not found' });
