@@ -10,10 +10,18 @@ import { writeAuditLog } from '../utils/auditLogger.js';
 
 const router = Router();
 
+// Password must contain at least one lowercase, one uppercase, one digit and
+// one special character (8–72 chars). e.g. "Test1234!" passes.
+const passwordComplexity =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/;
+
 const registerSchema = Joi.object({
   name: Joi.string().max(100).required(),
   email: Joi.string().email().max(254).required(),
-  password: Joi.string().min(8).max(72).required(),
+  password: Joi.string().min(8).max(72).pattern(passwordComplexity).required().messages({
+    'string.pattern.base':
+      'Password must include uppercase, lowercase, a number, and a special character',
+  }),
 });
 
 const loginSchema = Joi.object({
