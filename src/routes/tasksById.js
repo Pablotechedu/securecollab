@@ -10,6 +10,7 @@ import { writeAuditLog } from '../utils/auditLogger.js';
 import { getProjectRole } from '../policies/projectPolicies.js';
 import { isProjectArchived, canChangeStatus, canViewSensitiveDescription } from '../policies/taskPolicies.js';
 import { canReadTask, canEditTask } from '../middleware/checkPermission.js';
+import { getIO, EVENTS } from '../services/socketService.js';
 
 const router = Router();
 
@@ -84,6 +85,14 @@ router.put('/:id', validate(updateTaskSchema), async (req, res, next) => {
     logger.info('Task updated', { taskId: task._id.toString(), actorId: requesterId });
     writeAuditLog({ action: 'task.update', actorId: requesterId, resourceType: 'task', resourceId: task._id, req });
 
+    try {
+      getIO().to(`project:${task.projectId}`).emit(EVENTS.TASK_UPDATED, {
+        projectId: String(task.projectId),
+        taskId: task._id.toString(),
+        actorId: String(requesterId),
+      });
+    } catch { /* socket not initialized — graceful no-op */ }
+
     const updatedProject = await Project.findById(task.projectId);
     const updatedRole = updatedProject ? getProjectRole(updatedProject, requesterId) : null;
     const taskObj = task.toObject();
@@ -129,6 +138,15 @@ router.patch('/:id/status', validate(patchStatusSchema), async (req, res, next) 
     await task.save();
     logger.info('Task status updated', { taskId: task._id.toString(), status, actorId: requesterId });
     writeAuditLog({ action: 'task.status_change', actorId: requesterId, resourceType: 'task', resourceId: task._id, metadata: { status }, req });
+
+    try {
+      getIO().to(`project:${task.projectId}`).emit(EVENTS.TASK_STATUS_CHANGED, {
+        projectId: String(task.projectId),
+        taskId: task._id.toString(),
+        status,
+        actorId: String(requesterId),
+      });
+    } catch { /* socket not initialized — graceful no-op */ }
 
     const statusTaskObj = task.toObject();
     if (!canViewSensitiveDescription(req.user, statusTaskObj, projectRole)) {
@@ -187,10 +205,24 @@ router.delete('/:id', async (req, res, next) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
+    // Rule 4: archived projects are immutable — block task deletion too
+    if (isProjectArchived(project)) {
+      return res.status(403).json({ error: 'Project is archived' });
+    }
+
+    const projectIdStr = String(task.projectId);
     await Comment.deleteMany({ taskId: task._id });
     await Task.deleteOne({ _id: task._id });
-    logger.info('Task deleted', { taskId: task._id.toString(), projectId: task.projectId.toString(), actorId: requesterId });
+    logger.info('Task deleted', { taskId: task._id.toString(), projectId: projectIdStr, actorId: requesterId });
     writeAuditLog({ action: 'task.delete', actorId: requesterId, resourceType: 'task', resourceId: task._id, req });
+
+    try {
+      getIO().to(`project:${projectIdStr}`).emit(EVENTS.TASK_DELETED, {
+        projectId: projectIdStr,
+        taskId: task._id.toString(),
+        actorId: String(requesterId),
+      });
+    } catch { /* socket not initialized — graceful no-op */ }
 
     return res.status(204).send();
   } catch (err) {

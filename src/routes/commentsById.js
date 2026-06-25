@@ -8,6 +8,7 @@ import logger from '../utils/logger.js';
 import { writeAuditLog } from '../utils/auditLogger.js';
 import { getProjectRole } from '../policies/projectPolicies.js';
 import { canEditComment, canDeleteComment } from '../policies/commentPolicies.js';
+import { isProjectArchived } from '../policies/taskPolicies.js';
 
 const router = Router();
 
@@ -29,6 +30,19 @@ router.put('/:id', validate(updateCommentSchema), async (req, res, next) => {
     if (!canEditComment(req.user, comment.toObject())) {
       writeAuditLog({ action: 'security.unauthorized', actorId: requesterId, metadata: { path: req.path, rule: 'canEditComment' }, req });
       return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Rule 4: archived projects are immutable — block comment edits
+    const task = await Task.findById(comment.taskId);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    const project = await Project.findById(task.projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    if (isProjectArchived(project.toObject())) {
+      return res.status(403).json({ error: 'Project is archived' });
     }
 
     comment.body = req.body.body;
@@ -65,9 +79,16 @@ router.delete('/:id', async (req, res, next) => {
 
     const projectRole = getProjectRole(project, requesterId);
 
+    // Authorization first: an unauthorized actor always gets a generic Forbidden
+    // (and an audit entry), never the archived-state message.
     if (!canDeleteComment(req.user, comment.toObject(), projectRole)) {
       writeAuditLog({ action: 'security.unauthorized', actorId: requesterId, metadata: { path: req.path, rule: 'canDeleteComment' }, req });
       return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Rule 4: archived projects are immutable — block comment deletes
+    if (isProjectArchived(project.toObject())) {
+      return res.status(403).json({ error: 'Project is archived' });
     }
 
     await Comment.deleteOne({ _id: comment._id });

@@ -8,6 +8,7 @@ import logger from '../utils/logger.js';
 import { writeAuditLog } from '../utils/auditLogger.js';
 import { canViewProject, getProjectRole } from '../policies/projectPolicies.js';
 import { getOrgRole, isSuperAdminModifying } from '../policies/orgPolicies.js';
+import { isProjectArchived } from '../policies/taskPolicies.js';
 
 const router = Router();
 
@@ -72,6 +73,20 @@ router.put('/:id', validate(updateProjectSchema), async (req, res, next) => {
     }
 
     const { name, description, visibility, status } = req.body;
+
+    // Rule 4: an archived project's content is immutable. The only permitted
+    // change is un-archiving it (status -> active); block all content edits.
+    if (isProjectArchived(project.toObject())) {
+      const onlyUnarchiving =
+        status === 'active' &&
+        name === undefined &&
+        description === undefined &&
+        visibility === undefined;
+      if (!onlyUnarchiving) {
+        return res.status(403).json({ error: 'Project is archived' });
+      }
+    }
+
     if (name !== undefined) project.name = name;
     if (description !== undefined) project.description = description;
     if (visibility !== undefined) project.visibility = visibility;
@@ -172,6 +187,11 @@ router.post('/:id/members', validate(addProjectMemberSchema), async (req, res, n
     const projectRole = getProjectRole(project, requesterId);
     if (projectRole !== 'project_admin') {
       return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Rule 4: archived projects are immutable — block adding members
+    if (isProjectArchived(project.toObject())) {
+      return res.status(403).json({ error: 'Project is archived' });
     }
 
     const targetUser = await User.findOne({ email, isActive: true }).lean();
